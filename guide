@@ -1,0 +1,115 @@
+1. install alembic
+   pip install alembic
+
+
+2. initail a alembic [dir]
+   alembic init alembic
+
+3. check [dir] structure
+   [dir]
+   |--alembic_models.py      # database model
+   |--alembic.ini            # alembic config
+   |--alembic/               # alembic file folder
+      |--versions/            # versions (delete version = rm file)
+      |--env.py               # env setting
+      |--README
+      |--script.py.mako       # template
+
+
+4. update alembic.ini change sqlalchemy.url
+   sqlalchemy.url = sqlite:///:memory:
+   sqlalchemy.url = sqlite:////test.db
+   sqlalchemy.url = mysql://username:password@hostname/database
+
+5. new a version
+   # it will new a python xxxxxx_create_a_new_table.py in versions
+   # it include two method upgrade() and downgrade(), need to program it
+   alembic revision -m 'create a new table'
+
+   def upgrade():
+       # 添加表
+        op.create_table(
+            'account',
+            sa.Column('id', sa.Integer, primary_key=True),
+            sa.Column('name', sa.String(50), nullable=False),
+            sa.Column('description', sa.Unicode(200)),
+        )
+
+        # 添加列
+        # op.add_column('account', sa.Column('last_transaction_date', sa.DateTime))
+
+
+    def downgrade():
+        # 刪除表
+        op.drop_table('account')
+
+        # 刪除列 (not support to sqlite)
+        # op.drop_column('account', 'last_transaction_date')
+
+6.upgrade latest database
+  # database will create a table alembic_version to record current version
+  alembic upgrade head
+
+7.downgrade to origin database
+  alembic downgrade base
+
+8.commands
+  # upgrade two level
+  alembic upgrade +2
+
+  # downgrade one level
+  alembic downgrade -1
+
+  # upgrade to specific version
+  alembic upgrade xxxxxxx
+
+  # check current version
+  alembic current
+  """ [result]
+  $ 3715f217a003 (head)
+  """
+
+  # check history
+  alembic history --verbose
+  """ [result]
+  Rev: 3715f217a003 (head)
+  Parent: <base>
+  Path: /Users/data/Desktop/cindy/gomi/npp/alembic/t1/versions/3715f217a003_added_two_columns_to_person_table.py
+
+  added two columns to person table
+
+  Revision ID: 3715f217a003
+  Revises:
+  Create Date: 2016-11-09 15:54:15.280871
+  """
+
+  # 查看歷史版本（-r參數）類似切片
+  $ alembic history -r1975ea:ae1027
+  $ alembic history -r-3:current
+  $ alembic history -r1975ea:
+  """ [result]
+  <base> -> 3715f217a003 (head), added two columns to person table
+  """
+
+9. extra 自動生成升級代碼
+   9.1 update env.py target_metadata = None
+       import os
+       import sys
+
+       # 這裏需要添加相對路徑到sys.path，否則會引用失敗，嘗試過使用相對路徑，但各種不好使，還是使用這種方法靠譜些
+       sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "../yourproject/tutorial/Db")))
+
+       from User import User
+       from Role import Role
+       from Models import Base
+       target_metadata = Base.metadata
+
+    9.2 create new version with auto code
+        alembic revision --autogenerate -m "add user table"
+
+        """
+        Base.metadata 聲明的類必須以數據庫中的一一對應，如果數據庫中有的表，而在元數據中沒有，會識別成刪除表
+        revision創建版本之前執行之前需要升級到最新版本
+        配置Base之前，需要保證所有的Model都已經執行（即導入）過一次了，否則無法讀取到，也就是需要把所有Model都import進來
+        數據庫升級有風險，升級前最好先檢查一遍 upgrade 函數，可以的話做好備份
+        """
